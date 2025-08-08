@@ -1,5 +1,8 @@
 import crypto from 'crypto';
-import { privateKeyToAccount } from 'viem/accounts';
+import { promisify } from 'util';
+import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
+
+const hkdfAsync = promisify(crypto.hkdf);
 
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 const SALT_LENGTH = 32;
@@ -23,17 +26,10 @@ export async function deriveKey(
   const ikm = Buffer.from(masterKey, 'utf-8');
   const saltBuffer = Buffer.from(userId + salt, 'utf-8');
   const infoBuffer = Buffer.from(info, 'utf-8');
-
-  const prk = crypto.createHmac('sha256', saltBuffer)
-    .update(ikm)
-    .digest();
-
-  const okm = crypto.createHmac('sha256', prk)
-    .update(infoBuffer)
-    .update(Buffer.from([0x01]))
-    .digest();
-
-  return okm;
+  
+  // Built-in HKDF - one line!
+  const derivedKey = await hkdfAsync('sha256', ikm, saltBuffer, infoBuffer, 32);
+  return Buffer.from(derivedKey);
 }
 
 export async function encryptPrivateKey(
@@ -77,8 +73,7 @@ export async function decryptPrivateKey(
 }
 
 export function generateEOAPrivateKey(): string {
-  const privateKeyBytes = crypto.randomBytes(32);
-  return `0x${privateKeyBytes.toString('hex')}`;
+  return generatePrivateKey();
 }
 
 export function getAddressFromPrivateKey(privateKey: string): string {
